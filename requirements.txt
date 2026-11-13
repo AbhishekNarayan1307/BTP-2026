@@ -1,3 +1,49 @@
-huggingface_hub
+
+# ==========================================
+# LANGCHAIN CORE
+# ==========================================
+langchain
+langchain-core
+
+# ==========================================
+# OPENAI INTEGRATION
+# ==========================================
+langchain-openai
+openai
+
+# ==========================================
+# ANTHROPIC INTEGRATION
+# ==========================================
+langchain-anthropic
+
+# ==========================================
+# GOOGLE GEMINI INTEGRATION
+# ==========================================
+langchain-google-genai
+google-generativeai
+
+# ==========================================
+# HUGGING FACE INTEGRATION
+# ==========================================
+langchain-huggingface
+huggingface-hub
+transformers
+safetensors
+
+# ==========================================
+# LOCAL LLM - PYTORCH
+# ==========================================
+torch>=2.6
+accelerate
+
+# ==========================================
+# ENVIRONMENT VARIABLES
+# ==========================================
 python-dotenv
+
+# ==========================================
+# MACHINE LEARNING AND DATA PROCESSING
+# ==========================================
+numpy
+scikit-learn
 pandas
