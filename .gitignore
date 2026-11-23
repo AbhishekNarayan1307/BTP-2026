@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+# ChromaDB local vector database
+data_preprocessing/chroma_db/

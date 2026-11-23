@@ -47,3 +47,11 @@ python-dotenv
 numpy
 scikit-learn
 pandas
+
+
+# ==========================================
+# RAG - VECTOR DATABASE AND DOCUMENT PROCESSING
+# ==========================================
+chromadb
+sentence-transformers
+pymupdf
