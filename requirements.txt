@@ -55,3 +55,7 @@ pandas
 chromadb
 sentence-transformers
 pymupdf
+
+
+groq
+python-dotenv

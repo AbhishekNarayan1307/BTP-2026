@@ -97,7 +97,7 @@ embedding_function = (
 client = chromadb.PersistentClient(path=str(DB_PATH))
 
 legal_collection = client.get_collection(
-    name="legal_data",
+    name="legal_data_v3",
     embedding_function=embedding_function
 )
 
@@ -120,7 +120,8 @@ def retrieve_documents(collection, question, top_k=5):
 
     results = collection.query(
         query_texts=[question],
-        n_results=min(top_k, collection_count)
+        n_results=min(top_k, collection_count),
+        include=["documents", "metadatas", "distances"]
     )
 
     retrieved_documents = []
@@ -130,13 +131,20 @@ def retrieve_documents(collection, question, top_k=5):
         results["metadatas"][0],
         results["distances"][0]
     ):
-        retrieved_documents.append({
-            "text": document,
-            "source": metadata["source"],
-            "page": metadata["page"],
-            "chunk_index": metadata["chunk_index"],
-            "distance": distance
-        })
+        
+    metadata = metadata or {}
+
+    retrieved_documents.append({
+        "text": document,
+        "source": metadata.get("source", "Unknown"),
+        "page": metadata.get("page_start", "Unknown"),
+        "page_end": metadata.get("page_end", "Unknown"),
+        "chapter": metadata.get("chapter", "Unknown"),
+        "section": metadata.get("section", "Unknown"),
+        "subsection": metadata.get("subsection", "Unknown"),
+        "chunk_index": metadata.get("part", "Unknown"),
+        "distance": distance
+    })
 
     return retrieved_documents
 
