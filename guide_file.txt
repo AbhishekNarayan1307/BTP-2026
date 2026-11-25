@@ -15,3 +15,269 @@ python -m pip install -r requirements.txt
 
 #run 
 python LLM/local_model.py
+
+
+
+
+
+
+Use only these commands if setup is already done once
+
+After completing the initial setup, use these commands whenever you want to run the project:
+
+```bash
+cd BTP-2026
+source venv/bin/activate
+```
+
+Run the baseline:
+
+```bash
+python LLM/local_model.py
+```
+
+Run the RAG pipeline:
+
+```bash
+python -m src.rag_pipeline
+```
+
+Deactivate the environment when finished:
+
+```bash
+deactivate
+
+
+
+
+
+
+
+# BTP-2026: Project Setup and Execution Guide
+
+## 1. Project Overview
+
+This project evaluates the performance of a Large Language Model (LLM) with and without Retrieval-Augmented Generation (RAG).
+
+The project contains two main implementations:
+
+- **Baseline LLM (E0):** Generates answers using the language model without retrieving external documents.
+- **RAG Pipeline:** Retrieves relevant information from the Electronics document collection and generates evidence-grounded answers.
+
+The project currently uses Qwen2.5-0.5B-Instruct as its language model.
+
+## 2. Prerequisites
+
+Before setting up the project, ensure you have:
+
+- Python 3.10 or later (Python 3.12.7 was used during development).
+- Git installed.
+- A terminal (macOS/Linux) or compatible shell.
+- Internet access for downloading dependencies and model files.
+
+## 3. Clone the Repository
+
+Open your terminal and navigate to the directory where you want to keep the project.
+
+```bash
+git clone https://github.com/AishwinaNainwal/BTP-2026.git
+cd BTP-2026
+```
+
+## 4. Create a Virtual Environment
+
+Create an isolated Python environment:
+
+```bash
+python3 -m venv venv
+```
+
+Activate it:
+
+**macOS / Linux:**
+```bash
+source venv/bin/activate
+```
+
+**Windows (Command Prompt):**
+```bash
+venv\Scripts\activate
+```
+
+Upgrade pip:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+## 5. Install Dependencies
+
+Install the project's required packages:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+To reproduce the exact package versions used in the development environment instead, use:
+
+```bash
+python -m pip install -r requirements-lock.txt
+```
+
+Use one installation method, not both.
+
+Verify the installation:
+
+```bash
+python -m pip check
+```
+
+Expected output:
+
+```text
+No broken requirements found.
+```
+
+## 6. Run the Baseline LLM (E0)
+
+The baseline implementation runs the language model without retrieving information from the document collection.
+
+From the project root:
+
+```bash
+python LLM/local_model.py
+```
+
+The first execution downloads the model and tokenizer. Subsequent executions can use the locally cached model files.
+
+## 7. Run the Electronics RAG Pipeline
+
+The RAG pipeline retrieves relevant chunks from the Electronics document collection and uses them as evidence when generating an answer.
+
+Run:
+
+```bash
+python -m src.rag_pipeline
+```
+
+Enter your question when prompted.
+
+The pipeline will:
+
+1. Retrieve relevant document chunks from ChromaDB.
+2. Construct a prompt containing the retrieved evidence.
+3. Generate an answer using Qwen.
+4. Display the generated answer and retrieved source information.
+
+## 8. Project Directory Structure
+
+```text
+BTP-2026/
+│
+├── Data/
+│   ├── rawdata/
+│   │   ├── electronics articles_training data/
+│   │   └── Legal_data/
+│   ├── annotations/
+│   │   ├── questions.jsonl
+│   │   └── gold_evidence.jsonl
+│   ├── ece_data_csv/
+│   └── ece_data_jsonl/
+│
+├── LLM/
+│   ├── local_model.py
+│   └── model_loader.py
+│
+├── src/
+│   └── rag_pipeline.py
+│
+├── data_preprocessing/
+│   ├── ingest.py
+│   ├── query.py
+│   └── chroma_db/
+│
+├── configs/
+├── prompts/
+├── outputs/
+│   └── baseline/
+│
+├── requirements.txt
+├── requirements-lock.txt
+├── README.md
+└── guide_file.txt
+```
+
+## 9. Important Notes
+
+- Always activate the virtual environment before running project scripts.
+- Run commands from the project root directory (`BTP-2026`).
+- Do not commit your virtual environment (`venv/`) or private environment variables (`.env`) to GitHub.
+- The ChromaDB database is generated and stored under `data_preprocessing/chroma_db/`.
+- The RAG pipeline expects the Electronics collection to have been ingested into ChromaDB.
+- If the database has not been created or populated, run the ingestion script first:
+
+```bash
+python data_preprocessing/ingest.py
+```
+
+- The initial model download and embedding-model download require internet access.
+
+## 10. Troubleshooting
+
+**Problem: `ModuleNotFoundError`**
+
+Activate the virtual environment and install the dependencies again:
+
+```bash
+source venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+**Problem: ChromaDB collection not found**
+
+Run the ingestion script:
+
+```bash
+python data_preprocessing/ingest.py
+```
+
+**Problem: Model download or loading error**
+
+Check your internet connection and ensure the required model files can be downloaded from Hugging Face.
+
+**Problem: Incorrect working directory**
+
+Navigate to the repository root:
+
+```bash
+cd BTP-2026
+```
+
+---
+
+## 11. Quick Start
+
+After completing the initial setup, use these commands whenever you want to run the project:
+
+```bash
+cd BTP-2026
+source venv/bin/activate
+```
+
+Run the baseline:
+
+```bash
+python LLM/local_model.py
+```
+
+Run the RAG pipeline:
+
+```bash
+python -m src.rag_pipeline
+```
+
+Deactivate the environment when finished:
+
+```bash
+deactivate
+```
