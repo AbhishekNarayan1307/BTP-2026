@@ -8,7 +8,10 @@ JSON_FILES = [
     "mva_1988_rag_final.json",
 ]
 
-DB_PATH = "./indian_laws_chromadb"
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = str(BASE_DIR / "chromaDB")
 COLLECTION_NAME = "indian_statutory_acts"
 EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 
