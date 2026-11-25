@@ -1,236 +1,165 @@
-# Five RAG and LLM Models: Usage Guide
+# BTP-2026: Five-Model Comparison Guide
 
-This guide describes the implementations currently present in this checkout. The baseline and normal RAG modes are both in `src/rag_pipeline.py`. The augmentation-optimized implementation has its own interactive entry point. The retrieval-optimized and generation-optimized files are currently empty, so they cannot yet accept questions or return answers.
+## Running the Persistent Web Application
 
-## 1. Project Overview
+The web application runs the same five conditions as the unified terminal runner. It initializes the shared resources once when the backend starts, then reuses them for each submitted question and for both domains.
 
-| Model | What it does | Current status |
-|---|---|---|
-| Baseline LLM | Sends the question directly to Groq without document retrieval. | Interactive mode in `src/rag_pipeline.py`. |
-| Normal RAG | Retrieves ChromaDB passages, then asks Groq to answer from those passages. | Interactive mode in `src/rag_pipeline.py`; the current query helper has an indentation/syntax error and its configured database directory is absent in this checkout. |
-| Retrieval-Optimized RAG | Intended to use a retrieval-optimized implementation. | `RAG_pipeline_optimization/retrieval/retrieve.py` is empty; no callable or runnable model is implemented. |
-| Augmentation-Optimized RAG | Expands and reformulates queries, optionally uses HyDE retrieval, filters and deduplicates results, compresses repeated context, then asks Groq to answer from retrieved passages. | Interactive entry point in `RAG_pipeline_optimization/augment.py`. |
-| Generation-Optimized RAG | Intended to use a generation-optimized implementation. | `RAG_pipeline_optimization/Generation/generate.py` is empty; no callable or runnable model is implemented. |
+### Prerequisites
 
-## 2. Prerequisites
+- PowerShell opened at the project root (`BTP-2026`).
+- The existing `venv` virtual environment. The repository's documented baseline is Python 3.12.7; the current local `venv` was verified with Python 3.14.0.
+- The project dependencies in the root `requirements.txt`, including FastAPI, Uvicorn, Jinja2, ChromaDB, Sentence Transformers, `rank-bm25`, Groq, and the LangChain packages used by Model 5.
+- A Groq API key available as `GROQ_API_KEY` in the root `.env` file.
+- The existing ChromaDB database and both collections described below.
 
-### Python and VS Code
+Use the root `requirements.txt` for the web application. `requirements-lock.txt` is an existing pinned package list, but it does not include all of the web/runtime direct dependencies, including FastAPI, Groq, and `rank-bm25`.
 
-The project README specifies **Python 3.12.7**. From VS Code, choose **File > Open Folder...** and open the repository root (the folder containing `README.md`, `requirements.txt`, `src`, and `RAG_pipeline_optimization`).
+### First-time setup
 
-To open PowerShell at the project root, use **Terminal > New Terminal** in VS Code and check the current directory:
+Open PowerShell at the project root and activate the existing environment:
 
 ```powershell
-Get-Location
-```
-
-It should end in the repository folder, `BTP-2026`. If needed, change to it (adjust the parent path to match where you saved the project):
-
-```powershell
-Set-Location "C:\path\to\BTP-2026"
-```
-
-### Virtual environment and dependencies
-
-No `venv` or `.venv` directory is present in the inspected checkout. Create one if you do not already have one elsewhere, then activate it in PowerShell:
-
-```powershell
-python -m venv venv
+cd "C:\Users\Abhishek Narayan\Desktop\BTP 2026\BTP-2026"
 .\venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
+python --version
+```
+
+Install the project dependencies (or install any missing packages in an already provisioned environment):
+
+```powershell
 python -m pip install -r requirements.txt
 ```
 
-If PowerShell blocks activation because of the execution policy, use the current-process-only setting and activate again:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\venv\Scripts\Activate.ps1
-```
-
-The repository requirements include the Python packages used by the project, including `groq`, `python-dotenv`, `chromadb`, `sentence-transformers`, `transformers`, and `torch`. The local Qwen helper also downloads `Qwen/Qwen2.5-0.5B-Instruct` from Hugging Face the first time it is loaded; it does not implement a question-answering command-line interface by itself.
-
-### API key
-
-The baseline and both RAG answer-generation implementations use Groq model `openai/gpt-oss-120b`. They require `GROQ_API_KEY`. Create a `.env` file in the project root (or set the variable in the PowerShell session) and insert your own key; do not put a real key in this guide or commit it to source control.
-
-`.env` contents:
+Set the Groq credential in the root `.env` file. Keep the real key private:
 
 ```text
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-Alternatively, set it for the current PowerShell session:
+At backend startup, Sentence Transformers initializes `BAAI/bge-base-en-v1.5`, and the retrieval optimizer initializes `cross-encoder/ms-marco-MiniLM-L-6-v2`. If these models are not already cached, their first use downloads them from Hugging Face and can take longer. The first start also opens both Chroma collections and builds one BM25 index for each domain.
+
+### Start the backend and open the website
+
+From the project root with `venv` active, run the verified command:
 
 ```powershell
-$env:GROQ_API_KEY = "your_groq_api_key_here"
+.\venv\Scripts\python.exe -m uvicorn web_app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The two empty optimization files have no implementation to run and therefore have no working API-key or dependency requirements of their own yet.
+Keep this PowerShell window open while using the app. Open this URL in a browser:
 
-## 3. Running the Five Models Individually
+```text
+http://127.0.0.1:8000
+```
 
-Run commands from the project root with the virtual environment activated. Each model below is described independently; running one does not require running another model first.
+The backend also exposes `GET /api/health` and `POST /api/ask`.
 
-### 3.1 Baseline LLM Model
+### Use the web interface
 
-**Purpose:** Answers directly with Groq and does not retrieve documents.
+1. Choose **Legal** or **ECE**.
+2. Enter one question and select **Run all five models**.
+3. Wait for the five results. Each panel shows its answer or error, execution time, and available retrieval/verification details. Expand **Retrieved sources** to inspect passages and metadata. The evaluation header shows total execution time.
+4. Enter another question, or switch domains, and submit again. The backend remains running; do not restart it between questions.
 
-- **Python file:** `src/rag_pipeline.py`
-- **Entry point:** `main()`; direct answer function: `answer_question_direct(question)`.
-- **Terminal input:** Yes. The program menu offers direct LLM mode.
-- **Required key:** `GROQ_API_KEY` in `.env` or the environment.
-- **Database/domain:** None for direct mode. No ECE or Legal selection is needed.
-- **Command from the project root:**
+The health indicator reports backend/runtime readiness and the collection counts. For detailed status and initialization counters, run this in another PowerShell window:
 
 ```powershell
-python -m src.rag_pipeline
+Invoke-RestMethod http://127.0.0.1:8000/api/health | ConvertTo-Json -Depth 6
 ```
 
-At the first menu, enter `2` for **Without retrieved documents (Direct LLM)**, then type your question. For example: `What is the purpose of a retrieval-augmented generation system?` The answer is printed under `ANSWER`.
+When ready, the response reports `runtime_status: "ready"`, Legal collection `indian_statutory_acts`, ECE collection `research_papers`, and `initialization_counts`. The embedding function, Chroma client, Groq client, CrossEncoder, both domain retrievers, both BM25 indexes, and the generation pipeline should each show a count of `1`. Check the endpoint again after submitting questions or switching domains; these values should remain unchanged. The server log also reports startup initialization and per-model execution.
 
-The file initializes its Groq client at import time, so the key and the `groq` and `python-dotenv` packages are needed even before the menu appears.
+Switching between Legal and ECE selects the other collection and its already built retriever/index. Submitting a new question reuses the initialized resources; it does not reload the embedding or reranker models.
 
-### 3.2 Normal RAG Model
+Previous evaluations remain visible in the website during the browser tab's session. They are kept for comparison only: each request sends one domain and one question, and the model prompts do not receive earlier questions, answers, or conversation history.
 
-**Purpose:** Retrieves passages from ChromaDB, then generates an evidence-based answer with Groq.
+To stop the backend, return to the PowerShell window running Uvicorn and press **Ctrl+C**.
 
-- **Python file:** `src/rag_pipeline.py`
-- **Entry point:** `main()`; question-answer function: `answer_question_with_rag(question, collection, top_k=5)`.
-- **Terminal input:** Yes. The program asks for RAG mode, a domain, and a question.
-- **Required key:** `GROQ_API_KEY`.
-- **Domain selection:** Choose `1` for Legal or `2` for Electronics (ECE).
-- **Database configuration in `data_preprocessing/query.py`:** `data_preprocessing/chroma_db`, with `all-MiniLM-L6-v2`; collection names `legal_data_v3` and `ece_data`.
-- **Command from the project root:**
+### Troubleshooting
 
-```powershell
-python -m src.rag_pipeline
-```
+- **The page says the backend is unavailable:** Confirm that Uvicorn is still running in the first PowerShell window and that the address is `http://127.0.0.1:8000`.
+- **The runtime is not ready:** Check `GET /api/health` and the Uvicorn startup log. `component_errors` identifies the failed initialization component, such as ChromaDB/embeddings, Groq client, CrossEncoder, or RAG pipelines. The API does not accept questions until initialization succeeds.
+- **Missing package or import error:** Activate `venv` and install from the root `requirements.txt`. Installing only from `requirements-lock.txt` may omit the web/API, Groq, or retrieval dependencies.
+- **Groq key missing:** Confirm that `.env` is in the project root and contains `GROQ_API_KEY=...`. Restart the backend after changing `.env`.
+- **Groq rate limit or network error:** Check the backend log for the affected model's error. Retry after the provider becomes available; one model's request failure is reported separately from the other models.
+- **Database or collection unavailable:** Confirm that `data_preprocessing/chromaDB/indian_laws_chromadb` exists and contains `indian_statutory_acts` and `research_papers`. The web runtime opens the existing database; startup does not ingest or rebuild it.
+- **First startup takes a while:** The embedding and reranker model files may need to download. Keep the process online until the health endpoint reports `ready`.
+- **Port 8000 is already in use:** Stop the other process using that port before starting this backend.
 
-Enter `1` for **With retrieved documents (RAG)**, choose Legal or Electronics, and type your question. Example: `What does the evidence say about the selected topic?` The answer and retrieved source information are printed.
+## Five model roles
 
-**Current checkout limitation:** `data_preprocessing/query.py` contains a malformed indentation in `retrieve_documents`, which prevents Python from importing it. Also, the configured `data_preprocessing/chroma_db` directory was not present when this guide was prepared. The checkout does contain `data_preprocessing/indian_laws_chromadb`, but the normal RAG query code does not point to that database. Consequently, the command is the implementation's actual interactive command, but normal RAG will need those existing setup issues resolved before it can retrieve successfully. This guide does not change the implementation.
+Some Legal chunks do not contain page metadata. For those results, the interface displays the available source metadata and may show `Unknown` for the page.
 
-### 3.3 Retrieval-Optimized RAG Model
-
-**Purpose:** A retrieval-optimized variant is named in the project structure, but its implementation is not present.
-
-- **Python file:** `RAG_pipeline_optimization/retrieval/retrieve.py`
-- **Main entry point:** None; the inspected file is empty.
-- **Question-answer function:** None implemented.
-- **Terminal input:** No.
-- **Database, collections, API key, and domain selection:** Not configured in this file.
-- **Execution command:** None. There is no valid command to accept a question or return an answer from the current file.
-
-The file can be opened in an editor for inspection, but it cannot be run as the retrieval-optimized question-answering model until an implementation is added.
-
-### 3.4 Augmentation-Optimized RAG Model
-
-**Purpose:** Augments retrieval queries, retrieves for each query, optionally uses HyDE text as a retrieval query, deduplicates and ranks real passages, removes repeated sentences, and generates an answer using the original question and retrieved passages.
-
-- **Python file:** `RAG_pipeline_optimization/augment.py`
-- **Entry point:** `main()`; question-answer function: `answer_question_with_rag(question, collection, top_k=None, *, config=DEFAULT_CONFIG, generator=...)`.
-- **Terminal input:** Yes. The script lists collections it can open, then asks for a dataset choice and a question.
-- **Required key:** `GROQ_API_KEY` for query generation, HyDE generation, and final answer generation.
-- **Feature settings:** `AugmentationConfig` controls `query_expansion`, `multi_query`, `hyde`, `context_filtering`, and `context_compression` independently. It also controls `generated_query_count`, `retrieval_top_k`, `final_context_passages`, and `max_distance`.
-- **Database configuration:** First checks `data_preprocessing/chroma_db` for `legal_data_v3` and `ece_data` using `all-MiniLM-L6-v2`. If the Legal collection is unavailable there, it falls back to `data_preprocessing/indian_laws_chromadb`, collection `indian_statutory_acts`, using `BAAI/bge-base-en-v1.5`. The current checkout contains the latter Legal database; no ECE database was present at the inspected project paths.
-- **Command from the project root:**
-
-```powershell
-python -m RAG_pipeline_optimization.augment
-```
-
-Choose an available dataset from the displayed list, then enter your question. For example, for Legal: `What penalty does the Act provide for failing to take reasonable security safeguards for personal data?`
-
-The script only lists a dataset when it can open its configured database and collection. Opening a collection requires `chromadb` and `sentence-transformers` to be installed and the matching embedding model to be available. The Legal fallback uses the BGE embedding model; the primary collections use MiniLM. HyDE output is used only to search the database and is not passed as factual answer evidence.
-
-### 3.5 Generation-Optimized RAG Model
-
-**Purpose:** A generation-optimized variant is named in the project structure, but its implementation is not present.
-
-- **Python file:** `RAG_pipeline_optimization/Generation/generate.py`
-- **Main entry point:** None; the inspected file is empty.
-- **Question-answer function:** None implemented.
-- **Terminal input:** No.
-- **Database, collections, API key, and domain selection:** Not configured in this file.
-- **Execution command:** None. There is no valid command to accept a question or return an answer from the current file.
-
-The file can be opened in an editor for inspection, but it cannot be run as the generation-optimized question-answering model until an implementation is added.
-
-## 4. Model Comparison
-
-| Model | Python File | Execution Command | Retrieval Used |
+| # | Model | Retrieval | Answer generation |
 |---|---|---|---|
-| Baseline LLM | `src/rag_pipeline.py` | `python -m src.rag_pipeline` (choose mode `2`) | No |
-| Normal RAG | `src/rag_pipeline.py` | `python -m src.rag_pipeline` (choose mode `1`, then domain) | Yes; current query helper has a syntax issue and configured DB path is absent |
-| Retrieval-Optimized RAG | `RAG_pipeline_optimization/retrieval/retrieve.py` (empty) | No command; no entry point | Not implemented |
-| Augmentation-Optimized RAG | `RAG_pipeline_optimization/augment.py` | `python -m RAG_pipeline_optimization.augment` | Yes |
-| Generation-Optimized RAG | `RAG_pipeline_optimization/Generation/generate.py` (empty) | No command; no entry point | Not implemented |
+| 1 | Baseline LLM | None | Direct Groq generation using the question and general-knowledge baseline prompt. |
+| 2 | Normal RAG | Standard Chroma query | Normal evidence-grounded Groq generation. |
+| 3 | Retrieval-Optimized RAG | Semantic retrieval plus BM25, reciprocal-rank fusion, and CrossEncoder reranking | Normal RAG prompt and Groq generation. |
+| 4 | Augmentation-Optimized RAG | Query expansion, multi-query, HyDE retrieval, context filtering, deduplication, and compression | Normal evidence-grounded Groq generation. |
+| 5 | Generation-Optimized RAG | Standard Chroma query | Evidence-grounded generation, claim-level verification, heuristic support score, and abstention. |
 
-## 5. Troubleshooting
+All answer-generating adapters use Groq model `openai/gpt-oss-120b`. The five conditions retain separate prompts and generation/retrieval methods. The runner does not pass reference answers, gold evidence, or annotation labels to any model. Model 5's support score is heuristic, not a calibrated probability.
 
-### Check your project directory
+## Dataset and ChromaDB mapping
 
-```powershell
-Get-Location
-Test-Path .\README.md
-Test-Path .\src\rag_pipeline.py
+The existing persistent database is:
+
+```text
+data_preprocessing/chromaDB/indian_laws_chromadb
 ```
 
-Both `Test-Path` commands should return `True` when PowerShell is at the project root.
+| Selection | Collection | Source data | Embedding model |
+|---|---|---|---|
+| Legal | `indian_statutory_acts` | Consumer Protection Act 2019, Digital Personal Data Protection Act 2023, and Motor Vehicles Act 1988 chunks; 571 documents in the current local collection | `BAAI/bge-base-en-v1.5` |
+| ECE | `research_papers` | `data_preprocessing/all_research_papers_chunks.json`; 118 documents in the current local collection | `BAAI/bge-base-en-v1.5` |
 
-### Check Python and the active environment
+Both ingestion scripts now target this same database path and use the BGE embedding model. Normal, augmentation, and generation RAG use the selected collection. Retrieval-optimized RAG opens only that collection and uses the matching Legal JSON sources or ECE research-paper JSON source for BM25. The runner does not combine domain corpora or ingest data during startup.
 
-```powershell
-python --version
-Get-Command python
-```
+## Unified terminal application
 
-The project documents Python 3.12.7. If the intended virtual environment exists, activate it with `.\venv\Scripts\Activate.ps1` and check which interpreter is selected with `Get-Command python`.
-
-### Install missing packages
+From the repository root, activate the Windows PowerShell environment and run:
 
 ```powershell
-python -m pip install -r requirements.txt
-python -m pip show groq python-dotenv chromadb sentence-transformers
+.\venv\Scripts\Activate.ps1
+python run_all_models.py
 ```
 
-If imports still fail, verify that the same `python` command is being used to install packages and run the model.
+The application asks for one dataset (`1` Legal or `2` ECE) and one question. It passes the same question to all five models and runs them sequentially. Every model has its own result and status; a failure in one adapter does not stop the others. The final table summarizes status and elapsed time.
 
-### Check the API key without printing its value
+For this one-shot CLI, per-model elapsed time includes adapter imports and setup, retrieval, and generation. Shared dataset/collection initialization and user input are excluded. The persistent web application's per-model times exclude startup initialization and include that request's adapter work, retrieval, and generation.
 
-```powershell
-if ($env:GROQ_API_KEY) { "GROQ_API_KEY is set" } else { "GROQ_API_KEY is missing in this session" }
+## Individual commands
+
+Run these from the repository root with the virtual environment active:
+
+| Model | Command | Notes |
+|---|---|---|
+| Baseline LLM | `python -m src.rag_pipeline` | Select `2` for direct Groq mode. |
+| Normal RAG | `python -m src.rag_pipeline` | Select `1`, then Legal or Electronics; Electronics opens `research_papers`. |
+| Retrieval-Optimized | `python -m RAG_pipeline_optimization.retrieval.test_retrieve` | Interactive retrieval-only tool. The unified runner adds the normal answer-generation condition. |
+| Augmentation-Optimized | `python -m RAG_pipeline_optimization.augmentation.augment` | Interactive RAG using the selected collection. |
+| Generation-Optimized | `python -m RAG_pipeline_optimization.Generation.generate` | Select RAG and a domain; streaming is optional in standalone mode. |
+
+The standalone baseline in `LLM/local_model.py` is a separate fixed-question Qwen demo; it is not Model 1 in the five-condition comparison.
+
+## Current project structure
+
+```text
+BTP-2026/
+|-- run_all_models.py
+|-- web_app/
+|   |-- main.py
+|   |-- runtime.py
+|   |-- templates/index.html
+|   `-- static/
+|       |-- app.js
+|       `-- style.css
+|-- src/rag_pipeline.py
+|-- data_preprocessing/
+|   |-- query.py
+|   `-- chromaDB/indian_laws_chromadb/
+`-- RAG_pipeline_optimization/
+    |-- augmentation/augment.py
+    |-- retrieval/retrieve.py
+    `-- Generation/generate.py
 ```
-
-If the key is in the root `.env`, run the program from the project root so `python-dotenv` can find it. A missing or invalid key prevents Groq calls.
-
-### Check ChromaDB paths and the normal RAG helper
-
-```powershell
-Test-Path .\data_preprocessing\chroma_db
-Test-Path .\data_preprocessing\indian_laws_chromadb
-python -m py_compile .\data_preprocessing\query.py
-```
-
-In this checkout, the first path was absent and the query helper failed Python's syntax check because of indentation. The second path exists as the Legal fallback used by the augmentation model; it is not the path used by normal RAG. Fixing either issue would require changing Python code or database setup, which is outside this guide.
-
-### Import errors or no execution entry point
-
-Use the commands below to inspect the relevant files and search for interactive entry points:
-
-```powershell
-Get-Content .\RAG_pipeline_optimization\retrieval\retrieve.py
-Get-Content .\RAG_pipeline_optimization\Generation\generate.py
-Select-String -Path .\src\rag_pipeline.py, .\RAG_pipeline_optimization\augment.py -Pattern 'if __name__|def main|def answer_question'
-```
-
-The retrieval and generation optimization files are empty in this checkout. Installing packages cannot add their missing `main()` functions or question-answer logic.
-
-## 6. Important Notes
-
-- Each implemented model has its own callable pipeline; the baseline and normal RAG are selectable modes of `src/rag_pipeline.py`, while augmentation RAG has a separate module and command.
-- Running one model does not require editing another model's implementation.
-- The retrieval-optimized and generation-optimized question-answering models are not currently runnable because their named Python files are empty. No execution commands or question-answer functions are claimed for them.
-- Normal RAG currently cannot import its query helper as written, and its configured Chroma directory was not present in the inspected checkout. The augmentation script uses a separate Legal fallback when available.
-- The augmentation module was present at the exact path `RAG_pipeline_optimization/augment.py`; another similarly named file exists under the misspelled `RAG_pipeline_optimization/Augmenation/` directory. This guide's command and description refer to the exact path requested above.

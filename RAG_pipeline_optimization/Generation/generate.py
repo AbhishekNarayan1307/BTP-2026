@@ -34,7 +34,20 @@ if not GROQ_API_KEY:
 MODEL_NAME = "openai/gpt-oss-120b"
 
 # Original Groq client retained for direct LLM mode.
-client = Groq(api_key=GROQ_API_KEY)
+client = None
+
+
+def configure_groq_client(shared_client):
+    """Use the shared application client for direct generation calls."""
+    global client
+    client = shared_client
+
+
+def _get_groq_client():
+    global client
+    if client is None:
+        client = Groq(api_key=GROQ_API_KEY)
+    return client
 
 # LangChain connection to Groq's OpenAI-compatible endpoint.
 llm = ChatOpenAI(
@@ -574,8 +587,11 @@ def answer_question_with_rag(
         {
             "source": document["source"],
             "page": document["page"],
+            "section": document.get("section", "Unknown"),
             "chunk_index": document["chunk_index"],
-            "distance": document["distance"]
+            "distance": document["distance"],
+            "text": document["text"],
+            "metadata": document.get("metadata", {}),
         }
         for document in retrieved_documents
     ]
@@ -621,7 +637,7 @@ Instructions:
     print("\nGenerating answer directly using Groq...")
     print("No documents will be retrieved from ChromaDB.")
 
-    response = client.chat.completions.create(
+    response = _get_groq_client().chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {

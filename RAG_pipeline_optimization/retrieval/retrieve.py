@@ -126,6 +126,9 @@ class HybridRetriever:
       reranker_model: str | None = RERANKER_MODEL,
       chunk_size: int | None = None,
       chunk_overlap: int = 150,
+      embedding_function: Any | None = None,
+      reranker: CrossEncoder | None = None,
+      chroma_client: Any | None = None,
   ) -> None:
     self.chroma_path = resolve_chroma_path(chroma_path)
     self.collection_names = collection_names or [
@@ -140,14 +143,28 @@ class HybridRetriever:
     self.chunk_size = chunk_size
     self.chunk_overlap = chunk_overlap
 
-    self._embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+    self._embed_fn = embedding_function or embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name=self.embedding_model
     )
-    self._client = chromadb.PersistentClient(path=str(self.chroma_path))
+    if not self.chroma_path.is_dir():
+      raise FileNotFoundError(
+          f"Chroma database directory does not exist: {self.chroma_path}"
+      )
+    self._client = chroma_client or chromadb.PersistentClient(path=str(self.chroma_path))
     self._collections = self._load_collections()
+    loaded_names = {collection.name for collection in self._collections}
+    missing_names = [
+        name for name in self.collection_names if name not in loaded_names
+    ]
+    if missing_names:
+      raise ValueError(
+          f"Chroma collection(s) {missing_names} not found in "
+          f"{self.chroma_path}. Available collections: "
+          f"{sorted({collection.name for collection in self._client.list_collections()})}"
+      )
 
-    self._reranker: CrossEncoder | None = None
-    if self.reranker_model_name:
+    self._reranker: CrossEncoder | None = reranker
+    if self._reranker is None and self.reranker_model_name:
       self._reranker = CrossEncoder(self.reranker_model_name)
 
     self._corpus: list[dict[str, Any]] = []

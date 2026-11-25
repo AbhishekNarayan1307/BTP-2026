@@ -55,7 +55,11 @@ pandas
 chromadb
 sentence-transformers
 pymupdf
+rank-bm25
 
 
 groq
 python-dotenv
+fastapi
+uvicorn
+jinja2

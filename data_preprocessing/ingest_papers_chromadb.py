@@ -5,7 +5,7 @@ from chromadb.utils import embedding_functions  # pip install sentence-transform
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_JSON = BASE_DIR / "all_research_papers_chunks.json"
-DB_PATH = str(BASE_DIR / "chromaDB")
+DB_PATH = str(BASE_DIR / "chromaDB" / "indian_laws_chromadb")
 COLLECTION_NAME = "research_papers"
 EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 

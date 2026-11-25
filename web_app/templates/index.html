@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BTP-2026 RAG Evaluation</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">BTP-2026 · Evaluation workbench</p>
+        <h1>Five-model comparison</h1>
+        <p class="subtitle">Submit an independent question to all five evaluation conditions.</p>
+      </div>
+      <div id="health" class="health" role="status" aria-live="polite">
+        <span class="health-dot"></span><span id="health-label">Checking backend…</span>
+      </div>
+    </header>
+
+    <section class="question-card" aria-labelledby="question-heading">
+      <div class="form-heading">
+        <div><p class="eyebrow">New evaluation</p><h2 id="question-heading">Ask a question</h2></div>
+        <span class="independent-note">Each submission is independent</span>
+      </div>
+      <form id="ask-form">
+        <label for="domain">Domain</label>
+        <select id="domain" name="domain">
+          <option value="Legal">Legal</option>
+          <option value="ECE">ECE</option>
+        </select>
+        <label for="question">Question</label>
+        <textarea id="question" name="question" rows="4" placeholder="Enter one answerable question…" required></textarea>
+        <div class="form-actions">
+          <button id="submit" type="submit">Run all five models</button>
+          <button id="clear" class="button-secondary" type="button">Clear question</button>
+          <span id="progress" class="progress" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+
+    <section id="history" class="history" aria-live="polite">
+      <div class="empty-state" id="empty-state">Your evaluation results will appear here and remain visible while this page is open.</div>
+    </section>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

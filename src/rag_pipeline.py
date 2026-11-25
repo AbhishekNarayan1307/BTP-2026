@@ -17,7 +17,20 @@ if not GROQ_API_KEY:
         "GROQ_API_KEY not found. Please configure it in your .env file."
     )
 
-client = Groq(api_key=GROQ_API_KEY)
+client = None
+
+
+def configure_groq_client(shared_client):
+    """Use a process-wide client supplied by the application runtime."""
+    global client
+    client = shared_client
+
+
+def _get_groq_client():
+    global client
+    if client is None:
+        client = Groq(api_key=GROQ_API_KEY)
+    return client
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
@@ -28,7 +41,7 @@ MODEL_NAME = "openai/gpt-oss-120b"
 
 def generate_groq_response(system_prompt, user_prompt):
 
-    response = client.chat.completions.create(
+    response = _get_groq_client().chat.completions.create(
         model=MODEL_NAME,
         messages=[
             {

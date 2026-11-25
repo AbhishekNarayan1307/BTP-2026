@@ -11,7 +11,7 @@ JSON_FILES = [
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = str(BASE_DIR / "chromaDB")
+DB_PATH = str(BASE_DIR / "chromaDB" / "indian_laws_chromadb")
 COLLECTION_NAME = "indian_statutory_acts"
 EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 

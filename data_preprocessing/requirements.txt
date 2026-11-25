@@ -1,3 +1,4 @@
 chromadb
 sentence-transformers
 PyMuPDF
+rank-bm25

@@ -9,34 +9,49 @@ from chromadb.utils import embedding_functions
 # DATABASE CONFIGURATION
 # ============================================================
 
-# Database location
-DB_PATH = Path(__file__).resolve().parent / "chroma_db"
+# Existing persisted database in this checkout. Both available collections use
+# the BGE embeddings recorded in their Chroma collection metadata.
+DB_PATH = Path(__file__).resolve().parent / "chromaDB" / "indian_laws_chromadb"
 
 
 # Same embedding model used during document ingestion
 embedding_function = (
     embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="all-MiniLM-L6-v2"
+        model_name="BAAI/bge-base-en-v1.5"
     )
 )
 
 
-# Initialize persistent ChromaDB client
-client = chromadb.PersistentClient(path=str(DB_PATH))
+# Open existing data only. PersistentClient creates an empty database when the
+# path is absent, so check first to avoid accidental database creation.
+COLLECTION_ERRORS = {}
+client = None
+if not DB_PATH.is_dir():
+    DB_INIT_ERROR = f"Chroma database directory is missing: {DB_PATH}"
+else:
+    try:
+        client = chromadb.PersistentClient(path=str(DB_PATH))
+        DB_INIT_ERROR = None
+    except Exception as exc:
+        DB_INIT_ERROR = f"Could not open Chroma database at {DB_PATH}: {exc}"
 
 
-# Load Legal collection
-legal_collection = client.get_collection(
-    name="legal_data",
-    embedding_function=embedding_function
-)
+def _load_existing_collection(name):
+    if client is None:
+        COLLECTION_ERRORS[name] = DB_INIT_ERROR or "Chroma database is unavailable."
+        return None
+    try:
+        return client.get_collection(
+            name=name,
+            embedding_function=embedding_function,
+        )
+    except Exception as exc:
+        COLLECTION_ERRORS[name] = f"Collection '{name}' is unavailable: {exc}"
+        return None
 
 
-# Load Electronics collection
-ece_collection = client.get_collection(
-    name="ece_data",
-    embedding_function=embedding_function
-)
+legal_collection = _load_existing_collection("indian_statutory_acts")
+ece_collection = _load_existing_collection("research_papers")
 
 
 # ============================================================
@@ -85,23 +100,30 @@ def retrieve_documents(collection, question, top_k=5):
     documents = results["documents"][0]
     metadatas = results["metadatas"][0]
     distances = results["distances"][0]
+    ids = results.get("ids", [[]])[0]
 
-    for document, metadata, distance in zip(
-        documents,
-        metadatas,
-        distances
-    ):
+    for index, (document, metadata, distance) in enumerate(zip(
+        documents, metadatas, distances
+    )):
 
         metadata = metadata or {}
+        chunk_id = ids[index] if index < len(ids) else "Unknown"
 
         retrieved_documents.append({
             "text": document,
-            "source": metadata.get("source", "Unknown"),
-            "page": metadata.get("page", "Unknown"),
-            "chunk_index": metadata.get("chunk_index", "Unknown"),
+            "source": metadata.get(
+                "source",
+                metadata.get("act", metadata.get("paper_title", "Unknown")),
+            ),
+            "page": metadata.get("page", metadata.get("pages", "Unknown")),
+            "page_end": metadata.get("page_end", "Unknown"),
+            "section": metadata.get("section", "Unknown"),
+            "chapter": metadata.get("chapter", "Unknown"),
+            "chunk_index": metadata.get("chunk_index", chunk_id),
             "source_path": metadata.get("source_path", "Unknown"),
             "category": metadata.get("category", "Unknown"),
-            "distance": distance
+            "distance": distance,
+            "metadata": metadata,
         })
 
     return retrieved_documents
