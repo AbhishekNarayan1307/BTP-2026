@@ -1,10 +1,7 @@
 
-import os
 import json
 import re
 
-from dotenv import load_dotenv
-from groq import Groq
 import sys
 from pathlib import Path
 
@@ -13,51 +10,30 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from src.ollama_client import OLLAMA_MODEL, create_chat_completion
 
 
 # --------------------------------------------------
-# 1. GROQ CONFIGURATION
+# 1. OLLAMA CONFIGURATION
 # --------------------------------------------------
 
-load_dotenv()
+MODEL_NAME = OLLAMA_MODEL
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+def _prompt_messages(prompt, values):
+    """Render the existing LangChain prompt into OpenAI SDK message dicts."""
+    role_names = {"human": "user", "ai": "assistant"}
+    return [
+        {"role": role_names.get(message.type, message.type), "content": message.content}
+        for message in prompt.invoke(values).to_messages()
+    ]
 
-if not GROQ_API_KEY:
-    raise ValueError(
-        "GROQ_API_KEY not found. Please configure it in your .env file."
+
+def _generate_with_prompt(prompt, values):
+    response = create_chat_completion(
+        messages=_prompt_messages(prompt, values), temperature=0.2, max_tokens=None
     )
-
-MODEL_NAME = "openai/gpt-oss-120b"
-
-# Original Groq client retained for direct LLM mode.
-client = None
-
-
-def configure_groq_client(shared_client):
-    """Use the shared application client for direct generation calls."""
-    global client
-    client = shared_client
-
-
-def _get_groq_client():
-    global client
-    if client is None:
-        client = Groq(api_key=GROQ_API_KEY)
-    return client
-
-# LangChain connection to Groq's OpenAI-compatible endpoint.
-llm = ChatOpenAI(
-    model=MODEL_NAME,
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
-    temperature=0.2
-)
-
-output_parser = StrOutputParser()
+    return response.choices[0].message.content or ""
 
 
 # --------------------------------------------------
@@ -227,9 +203,8 @@ Return only the requested JSON.
 # 4. LANGCHAIN CHAINS
 # --------------------------------------------------
 
-generation_chain = GENERATION_PROMPT | llm | output_parser
-
-verification_chain = VERIFICATION_PROMPT | llm | output_parser
+generation_chain = GENERATION_PROMPT
+verification_chain = VERIFICATION_PROMPT
 
 
 # --------------------------------------------------
@@ -318,7 +293,7 @@ def verify_generated_answer(question, context, answer):
         "abstention_response": ABSTENTION_RESPONSE
     }
 
-    response = verification_chain.invoke(verification_input)
+    response = _generate_with_prompt(verification_chain, verification_input)
 
     verification_result = parse_verification_response(response)
 
@@ -470,10 +445,16 @@ def generate_stream(question, retrieved_documents):
         retrieved_documents
     )
 
-    for chunk in generation_chain.stream(prompt_input):
-
-        if chunk:
-            yield chunk
+    response = create_chat_completion(
+        messages=_prompt_messages(generation_chain, prompt_input),
+        temperature=0.2,
+        max_tokens=None,
+        stream=True,
+    )
+    for chunk in response:
+        content = chunk.choices[0].delta.content
+        if content:
+            yield content
 
 
 # --------------------------------------------------
@@ -526,7 +507,7 @@ def answer_question_with_rag(
         retrieved_documents
     )
 
-    print("\nGenerating answer using Groq GPT-OSS-120B...")
+    print("\nGenerating answer using Ollama (llama3.2)...")
 
     if stream:
 
@@ -548,9 +529,7 @@ def answer_question_with_rag(
 
     else:
 
-        generated_answer = generation_chain.invoke(
-            prompt_input
-        )
+        generated_answer = _generate_with_prompt(generation_chain, prompt_input)
 
     # --------------------------------------------------
     # CLAIM-LEVEL VERIFICATION
@@ -634,11 +613,10 @@ Instructions:
 5. If you are uncertain about something, acknowledge it.
 """
 
-    print("\nGenerating answer directly using Groq...")
+    print("\nGenerating answer directly using Ollama (llama3.2)...")
     print("No documents will be retrieved from ChromaDB.")
 
-    response = _get_groq_client().chat.completions.create(
-        model=MODEL_NAME,
+    response = create_chat_completion(
         messages=[
             {
                 "role": "system",
@@ -650,7 +628,7 @@ Instructions:
             }
         ],
         temperature=0.2,
-        max_completion_tokens=2048
+        max_tokens=2048
     )
 
     answer = response.choices[0].message.content
@@ -788,7 +766,7 @@ def main():
         if mode == "2":
             print(
                 "No documents were used. "
-                "Answer generated directly by Groq."
+                "Answer generated directly by Ollama."
             )
         else:
             print("No sources available.")

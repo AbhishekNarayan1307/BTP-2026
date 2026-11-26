@@ -1,4 +1,4 @@
-"""Augmentation-optimized RAG pipeline built on the project Chroma/Groq stack.
+"""Augmentation-optimized RAG pipeline built on the project Chroma/Ollama stack.
 
 Run from the project root with::
 
@@ -13,22 +13,16 @@ used as a retrieval query and is never included in answer evidence.
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.ollama_client import OLLAMA_MODEL, create_chat_completion
+
 INSUFFICIENT_EVIDENCE = "The provided evidence is insufficient to answer this question."
-MODEL_NAME = "openai/gpt-oss-120b"
+MODEL_NAME = OLLAMA_MODEL
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_SHARED_GROQ_CLIENT: Any | None = None
-
-
-def configure_groq_client(shared_client: Any) -> None:
-    """Install the application-wide Groq client for repeated requests."""
-    global _SHARED_GROQ_CLIENT
-    _SHARED_GROQ_CLIENT = shared_client
 
 
 @dataclass(frozen=True)
@@ -50,44 +44,21 @@ class AugmentationConfig:
 DEFAULT_CONFIG = AugmentationConfig()
 
 
-def _groq_client() -> Any:
-    """Create the existing Groq client only when a model call is needed."""
-    if _SHARED_GROQ_CLIENT is not None:
-        return _SHARED_GROQ_CLIENT
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(PROJECT_ROOT / ".env")
-    except ImportError:
-        # Environment variables still work when python-dotenv is not installed.
-        pass
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GROQ_API_KEY is not set. Add it to the project .env file or environment."
-        )
-    try:
-        from groq import Groq
-    except ImportError as exc:
-        raise RuntimeError("The existing Groq dependency is required (pip install groq).") from exc
-    return Groq(api_key=api_key)
-
-
-def generate_groq_response(
+def generate_ollama_response(
     system_prompt: str,
     user_prompt: str,
     *,
     temperature: float = 0.2,
     max_completion_tokens: int = 2048,
 ) -> str:
-    """Call the same Groq model used by src/rag_pipeline.py."""
-    response = _groq_client().chat.completions.create(
-        model=MODEL_NAME,
+    """Call the same local Ollama model used by the other configurations."""
+    response = create_chat_completion(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         temperature=temperature,
-        max_completion_tokens=max_completion_tokens,
+        max_tokens=max_completion_tokens,
     )
     content = response.choices[0].message.content
     return content.strip() if content else ""
@@ -129,7 +100,7 @@ def generate_query_variants(
     multi_query_count: int = 3,
     query_expansion: bool = True,
     multi_query: bool = True,
-    generator=generate_groq_response,
+    generator=generate_ollama_response,
 ) -> tuple[list[str], list[str]]:
     """Generate expansion terms and/or diverse question formulations in one call."""
     if not query_expansion and not multi_query:
@@ -173,7 +144,7 @@ Question: {question}"""
 
 
 def generate_hypothetical_document(
-    question: str, *, generator=generate_groq_response
+    question: str, *, generator=generate_ollama_response
 ) -> str:
     """Generate a hypothetical retrieval aid; callers must not use it as evidence."""
     try:
@@ -389,7 +360,7 @@ def answer_question_with_rag(
     top_k: int | None = None,
     *,
     config: AugmentationConfig = DEFAULT_CONFIG,
-    generator=generate_groq_response,
+    generator=generate_ollama_response,
 ) -> dict[str, Any]:
     """Run query augmentation, independent retrieval, evidence cleanup, and answer."""
     if not question or not question.strip():

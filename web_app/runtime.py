@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 import threading
 import time
@@ -36,7 +35,7 @@ class EvaluationRuntime:
         self.embedding_function: Any = None
         self.chroma_client: Any = None
         self.reranker: Any = None
-        self.groq_client: Any = None
+        self.ollama_client: Any = None
         self.request_lock = threading.Lock()
         self.started_at: float | None = None
 
@@ -59,6 +58,18 @@ class EvaluationRuntime:
                 load_dotenv(PROJECT_ROOT / ".env")
             except ImportError:
                 pass
+
+            try:
+                from src.ollama_client import get_client, validate_ollama
+
+                self.ollama_client = get_client()
+                validate_ollama()
+                self._count("ollama_client")
+            except Exception as exc:
+                self.component_errors["Ollama client"] = str(exc)
+                raise RuntimeInitializationError(
+                    f"Ollama initialization failed: {exc}"
+                ) from exc
 
             # Importing query initializes the one shared SentenceTransformer
             # embedding function and opens both existing Chroma collections.
@@ -95,26 +106,6 @@ class EvaluationRuntime:
                 ) from exc
 
             try:
-                api_key = os.getenv("GROQ_API_KEY")
-                if not api_key:
-                    raise RuntimeError("GROQ_API_KEY is not configured in .env or environment")
-                from groq import Groq
-
-                self.groq_client = Groq(api_key=api_key)
-                from src import rag_pipeline
-
-                rag_pipeline.configure_groq_client(self.groq_client)
-                from RAG_pipeline_optimization.augmentation import augment
-
-                augment.configure_groq_client(self.groq_client)
-                self._count("groq_client")
-            except Exception as exc:
-                self.component_errors["Groq client"] = str(exc)
-                raise RuntimeInitializationError(
-                    f"Groq client initialization failed: {exc}"
-                ) from exc
-
-            try:
                 from sentence_transformers import CrossEncoder
 
                 self.reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
@@ -141,13 +132,10 @@ class EvaluationRuntime:
                     )
                     self._count(f"hybrid_retriever:{domain}")
                     self._count(f"bm25_index:{domain}")
-                    context.groq_client = self.groq_client
+                # Import Model 5's prompt definitions once so they are reused
+                # across all subsequent requests.
+                from RAG_pipeline_optimization.generation import generate
 
-                # Import Model 5's chain once so its LangChain client and prompt
-                # objects are retained across all subsequent requests.
-                from RAG_pipeline_optimization.Generation import generate
-
-                generate.configure_groq_client(self.groq_client)
                 self._count("generation_pipeline")
             except Exception as exc:
                 self.component_errors["RAG pipelines"] = str(exc)

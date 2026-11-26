@@ -24,7 +24,6 @@ class DatasetContext:
     collection: Any = None
     error: str | None = None
     hybrid_retriever: Any = None
-    groq_client: Any = None
 
     @property
     def available(self) -> bool:
@@ -144,7 +143,7 @@ def _run_normal_rag(question: str, context: DatasetContext) -> dict[str, Any]:
 
 def _run_retrieval_optimized(question: str, context: DatasetContext) -> dict[str, Any]:
     from RAG_pipeline_optimization.retrieval.retrieve import HybridRetriever
-    from src.rag_pipeline import build_rag_prompt, generate_groq_response
+    from src.rag_pipeline import build_rag_prompt, generate_ollama_response
 
     retriever = context.hybrid_retriever
     if retriever is None:
@@ -193,7 +192,7 @@ def _run_retrieval_optimized(question: str, context: DatasetContext) -> dict[str
 
 Your responsibility is to answer questions strictly using the evidence supplied by the user.
 Never introduce external knowledge or unsupported assumptions."""
-    answer = generate_groq_response(system_prompt, prompt)
+    answer = generate_ollama_response(system_prompt, prompt)
     sources = [
         {
             "source": doc["source"],
@@ -213,12 +212,9 @@ def _run_augmentation(question: str, context: DatasetContext) -> dict[str, Any]:
     from RAG_pipeline_optimization.augmentation import augment
 
     generation_errors: list[Exception] = []
-    if context.groq_client is not None:
-        augment.configure_groq_client(context.groq_client)
-
     def tracked_generator(*args: Any, **kwargs: Any) -> str:
         try:
-            return augment.generate_groq_response(*args, **kwargs)
+            return augment.generate_ollama_response(*args, **kwargs)
         except Exception as exc:
             generation_errors.append(exc)
             raise
@@ -231,14 +227,14 @@ def _run_augmentation(question: str, context: DatasetContext) -> dict[str, Any]:
     )
     if generation_errors:
         raise RuntimeError(
-            "Groq call failed inside the augmentation pipeline: "
+            "Ollama call failed inside the augmentation pipeline: "
             + "; ".join(f"{type(exc).__name__}: {exc}" for exc in generation_errors)
         )
     return result
 
 
 def _run_generation_optimized(question: str, context: DatasetContext) -> dict[str, Any]:
-    from RAG_pipeline_optimization.Generation.generate import answer_question_with_rag
+    from RAG_pipeline_optimization.generation.generate import answer_question_with_rag
 
     return answer_question_with_rag(
         question, context.collection, top_k=5, stream=False

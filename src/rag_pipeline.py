@@ -1,48 +1,21 @@
 
-import os
-from dotenv import load_dotenv
-from groq import Groq
+from src.ollama_client import OLLAMA_MODEL, create_chat_completion
 
 
 # --------------------------------------------------
-# 1. GROQ CONFIGURATION
+# 1. OLLAMA CONFIGURATION
 # --------------------------------------------------
 
-load_dotenv()
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-if not GROQ_API_KEY:
-    raise ValueError(
-        "GROQ_API_KEY not found. Please configure it in your .env file."
-    )
-
-client = None
-
-
-def configure_groq_client(shared_client):
-    """Use a process-wide client supplied by the application runtime."""
-    global client
-    client = shared_client
-
-
-def _get_groq_client():
-    global client
-    if client is None:
-        client = Groq(api_key=GROQ_API_KEY)
-    return client
-
-MODEL_NAME = "openai/gpt-oss-120b"
+MODEL_NAME = OLLAMA_MODEL
 
 
 # --------------------------------------------------
-# 2. GENERATE RESPONSE USING GROQ
+# 2. GENERATE RESPONSE USING OLLAMA
 # --------------------------------------------------
 
-def generate_groq_response(system_prompt, user_prompt):
+def generate_ollama_response(system_prompt, user_prompt):
 
-    response = _get_groq_client().chat.completions.create(
-        model=MODEL_NAME,
+    response = create_chat_completion(
         messages=[
             {
                 "role": "system",
@@ -54,7 +27,7 @@ def generate_groq_response(system_prompt, user_prompt):
             }
         ],
         temperature=0.2,
-        max_completion_tokens=2048
+        max_tokens=2048
     )
 
     return response.choices[0].message.content
@@ -166,9 +139,9 @@ the evidence supplied by the user.
 
 Never introduce external knowledge or unsupported assumptions."""
 
-    print("\nGenerating answer using Groq...")
+    print("\nGenerating answer using Ollama (llama3.2)...")
 
-    answer = generate_groq_response(
+    answer = generate_ollama_response(
         system_prompt,
         prompt
     )
@@ -211,10 +184,10 @@ Instructions:
 5. If you are uncertain about something, acknowledge it.
 """
 
-    print("\nGenerating answer directly using Groq...")
+    print("\nGenerating answer directly using Ollama (llama3.2)...")
     print("No documents will be retrieved from ChromaDB.")
 
-    answer = generate_groq_response(
+    answer = generate_ollama_response(
         system_prompt,
         question
     )
@@ -316,7 +289,7 @@ def main():
     if not result["sources"]:
 
         if mode == "2":
-            print("No documents were used. Answer generated directly by Groq.")
+            print("No documents were used. Answer generated directly by Ollama.")
         else:
             print("No sources available.")
 
